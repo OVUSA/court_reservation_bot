@@ -66,6 +66,104 @@ async function main() {
   // STEP 6 — save dashboard HTML so we can inspect it
   fs.writeFileSync("debug-member.html", await page.content(), "utf8");
 
+// STEP 7 — click "Reserve a Court" link
+    console.log("Clicking Reserve a Court...");
+    await Promise.all([
+    page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 }),
+    page.click('#menu_reserve_a_court'),
+    ]);
+    fs.writeFileSync("debug-court.html", await page.content(), "utf8");
+
+
+//     await page.goto("https://rippner.clubautomation.com/event/reserve-court-new", {
+//     waitUntil: "networkidle2",
+//   });
+//   console.log("✅ Court reservation page loaded");
+ 
+  // ── STEP 3: Fill the search form ────────────────────────────────
+ 
+  // Sport = Tennis
+  // select the option whose text is "Tennis"
+  console.log("Selecting sport: Tennis");
+  await page.select('select[name="component"]', await page.$eval(
+    'select[name="component"] option',
+    opts => [...document.querySelectorAll('select[name="component"] option')]
+      .find(o => o.text.includes("Tennis"))?.value || "-1"
+  ));
+ 
+  // Location = South Austin Tennis Center (value="1")
+  console.log("Selecting location: South Austin Tennis Center");
+  await page.select('select[name="club"]', "1");
+ 
+  // Court = All Courts (value="-1")
+  console.log("Selecting court: All Courts");
+  await page.select('select[name="court"]', "-1");
+ 
+  // Host = Olya Velichko (value="57325")
+  console.log("Selecting host: Olya Velichko");
+  await page.select('select[name="host"]', "57325");
+ 
+  // Date — tomorrow in MM/DD/YYYY format
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const date =
+    String(tomorrow.getMonth() + 1).padStart(2, "0") + "/" +
+    String(tomorrow.getDate()).padStart(2, "0") + "/" +
+    tomorrow.getFullYear();
+ 
+  console.log("Setting date: " + date);
+  // Clear the field first then type the date
+  await page.$eval('input[name="date"]', el => el.value = "");
+  await page.type('input[name="date"]', date, { delay: 50 });
+ 
+    console.log("Selecting interval: 90 Min");
+    await page.evaluate(() => {
+    document.querySelector('#interval-90').click();
+    });
+  // Time From = 6:00 PM (value="18")
+  console.log("Selecting time from: 6:00 PM");
+  await page.select('select[name="timeFrom"]', "18");
+ 
+  // Time To = 9:00 PM (value="21")
+  console.log("Selecting time to: 9:00 PM");
+  await page.select('select[name="timeTo"]', "21");
+ 
+  // ── STEP 4: Click Search ─────────────────────────────────────────
+  console.log("Clicking Search...");
+//   await Promise.all([
+//     page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 })
+//       .catch(() => {}),           
+//     page.click('#reserve-court-search'),
+//   ]);
+ 
+
+console.log("Clicking Search...");
+ 
+  await Promise.all([
+    // Wait for the AJAX POST response from the server
+    page.waitForResponse(
+      res => res.url().includes("reserve-court-new") && res.request().method() === "POST",
+      { timeout: 15000 }
+    ),
+    page.click('#reserve-court-search'),
+  ]);
+ 
+  // Give the DOM time to inject the results
+
+ 
+  // ── STEP 5: Read results ─────────────────────────────────────────
+  const resultsHtml = await page.content();
+  fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
+  console.log("✅ Results saved → debug-results.html");
+ 
+  // Check what came back
+  if (resultsHtml.includes("No available times")) {
+    console.log("❌ No courts available for this date/time");
+  } else if (resultsHtml.includes("r-line available")) {
+    console.log("✅ Available courts found — open debug-results.html");
+  } else {
+    console.log("⚠️  Unexpected result — open debug-results.html to inspect");
+  }
 
   //await browser.close();
   console.log("\nDone. Next step: load cookies.json into axios for court booking requests.");
@@ -75,3 +173,17 @@ main().catch(function(err) {
   console.error("❌ Unexpected error: " + err.message);
   process.exit(1);
 });
+
+//name="component" => Tennis
+//name="club"
+//<option value="-1">All Locations</option>
+  //  <option value="3">Rippner Tennis - Pharr Tennis Center</option>
+//    <option value="1" selected="selected">Rippner Tennis - South Austin Tennis Center</option>
+//    <option value="2">Rippner Tennis - Williamson County Tennis Center</option>
+//name="court" <option value="-1">All Courts</option>
+//name="host" value="57325" selected="selected">Olya Velichko</option>
+//name="date" value="03/22/2026"
+//name="interval" value="90"
+//name="timeFrom <option value="18">06:00 PM</option>
+//name="timeTo"
+//click search
