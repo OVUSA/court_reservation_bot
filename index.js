@@ -126,11 +126,13 @@ console.log("Clicking Search...");
  
   // ── STEP 8: Read results ─────────────────────────────────────────
   const resultsHtml = await page.content();
-  fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
-  console.log("✅ Results saved → debug-results.html");
+ //fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
 
 
-  console.log("No courts available for this date/time");
+  if (resultsHtml.includes("No available times based on your search criteria")) {
+    console.log("❌ No courts available for this date/time");
+      return;
+    }
 
  // await browser.close();
 }
