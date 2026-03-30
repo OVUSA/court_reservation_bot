@@ -1,7 +1,6 @@
 /**
  * Uses real Chrome to log in — works on Node 16.
  */
-
 const puppeteer   = require("puppeteer");
 const fs          = require("fs");
 const credentials = require("./credentials.json");
@@ -91,7 +90,6 @@ if (IS_LAMBDA) {
   console.log("Selecting court: All Courts");
   await page.select('select[name="court"]', "-1");
  
-  // Host = Olya Velichko (value="57325")
   await page.select('select[name="host"]', credentials.UserID);
  
   console.log("Setting date: " + date);
@@ -112,6 +110,8 @@ if (IS_LAMBDA) {
 
   console.log("Selecting time to: 9:00 PM");
   await page.select('select[name="timeTo"]', "14");
+
+  //const reservationTime = 
  
   // ── STEP 7: Click Search ─────────────────────────────────────────
 
@@ -126,8 +126,8 @@ if (IS_LAMBDA) {
 
   // ── STEP 8: Read results ─────────────────────────────────────────
   const resultsHtml = await page.content();
- // await page.screenshot({ path: 'search-after-click.png' });
- // fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
+  // await page.screenshot({ path: 'search-after-click.png' });
+  //fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
 
   if (resultsHtml.includes("No available times based on your search criteria")) {
     const msg = `❌ No courts available on ${date} (6–9 PM)`;
@@ -156,9 +156,32 @@ if (IS_LAMBDA) {
     firstLink.click();
 });
 
+const dateConfirmation = await page.evaluate(() => {
+  return document.querySelector("th:contains('Event Date:') + td") && 
+         document.querySelector(`td:contains('${date}')`);
+});
+const location = await page.evaluate(() => {
+  return document.querySelector("th:contains('Location:') + td") &&
+                       document.querySelector("td:contains('South Austin Tennis Center')");
+});
+const time = await page.evaluate(() => { return document.querySelector(`td:contains('${reservationTime}')`); // e.g. "Mon 12:00PM-1:30PM"
 
+});
+ if(dateConfirmation && location && time) {
+    await page.evaluate(() => {
+    const confirmAndReserve    = document.querySelector("#confirm");
+    //confirmAndReserve.click();
+    console.log(`✅ Court reserved on ${date} at ${location} for ${time}`);
+    // await sendTelegram(`✅ Court reserved on ${date} at ${location} for ${time}`);
+    });
+   
+ } else {
+  console.error("❌ Failed to confirm reservation details");
+  const confirmAndCancel  = document.querySelector("#cancel");
+  confirmAndCancel.click();
+  // await sendTelegram("❌ Failed to confirm reservation details");
+ }
 
-    
  // await browser.close();
 }
 
