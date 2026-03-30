@@ -1,21 +1,7 @@
 /**
  * Uses real Chrome to log in — works on Node 16.
  */
-// const IS_LAMBDA = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-// let browser;
-// if (IS_LAMBDA) {
-//   const chromium  = require("@sparticuz/chromium");
-//   const puppeteer = require("puppeteer-core");
-//   browser = await puppeteer.launch({
-//     args:           chromium.args,
-//     executablePath: await chromium.executablePath(),
-//     headless:       true,
-//   });
-// } else {
-//   const puppeteer = require("puppeteer");
-//   browser = await puppeteer.launch({ headless: false });
-// }
 const puppeteer   = require("puppeteer");
 const fs          = require("fs");
 const credentials = require("./credentials.json");
@@ -29,10 +15,23 @@ const date =
 
 async function main() {
 
-  const browser = await puppeteer.launch({
+const IS_LAMBDA = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+
+let browser;
+if (IS_LAMBDA) {
+  const chromium  = require("@sparticuz/chromium");
+  const puppeteer = require("puppeteer-core");
+  browser = await puppeteer.launch({
+    args:           chromium.args,
+    executablePath: await chromium.executablePath(),
+    headless:       true,
+  });
+} else {
+    browser = await puppeteer.launch({
     headless: false,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
+}
 
   const page = await browser.newPage();
   await page.setUserAgent(
@@ -70,12 +69,7 @@ async function main() {
   // We will load them into axios for all future requests
   const cookies = await page.cookies();
   
-  //fs.writeFileSync("cookies.json", JSON.stringify(cookies, null, 2));
-
-  // STEP 6 — save dashboard HTML so we can inspect it
- // fs.writeFileSync("debug-member.html", await page.content(), "utf8");
-
-// STEP 7 — click "Reserve a Court" link
+  // STEP 7 — click "Reserve a Court" link
     await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 }),
     page.click('#menu_reserve_a_court'),
@@ -100,49 +94,69 @@ async function main() {
   // Host = Olya Velichko (value="57325")
   await page.select('select[name="host"]', credentials.UserID);
  
-  // Clear the field first then type the date
-  await page.$eval('input[name="date"]', (el, dateValue) => {
-    el.value = dateValue;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    if (window.jQuery) {
-      window.jQuery(el).trigger('change');
-    }
+  console.log("Setting date: " + date);
+  await page.$eval("input[name='date']", (el, d) => {
+    el.value = "";    // clear first
+    el.value = d;
+    el.dispatchEvent(new Event("input",  { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.dispatchEvent(new Event("blur",   { bubbles: true }));
+    if (window.jQuery) window.jQuery(el).val(d).trigger("change");
   }, date);
- 
-  // Wait for time selects to appear after date change
-    await page.waitForSelector('select[name="timeFrom"]', { timeout: 5000 });
-    await page.waitForSelector('select[name="timeTo"]', { timeout: 5000 });
- 
-    console.log("Selecting interval: 90 Min");
-    await page.evaluate(() => {
-    document.querySelector('#interval-90').click();
-        });
 
-//  console.log("Selecting time from: 6:00 PM");
+  console.log("Setting interval: 90 Min");
+  await page.evaluate(() => { document.querySelector("#interval-90").click(); });
+
+ console.log("Selecting time from: 6:00 PM");
   await page.select('select[name="timeFrom"]', "10");
 
- // console.log("Selecting time to: 9:00 PM");
+  console.log("Selecting time to: 9:00 PM");
   await page.select('select[name="timeTo"]', "14");
  
   // ── STEP 7: Click Search ─────────────────────────────────────────
 
-console.log("Clicking Search...");
-
+  console.log("STEP 7 — Clicking Search");
   await Promise.all([
-    page.waitForFunction(() => !document.querySelector('#times-to-reserve-container').innerText.includes('Click "Search"')),
-    page.click('button[name="reserve-court-search"]'),
+    page.waitForResponse(
+      (res) => res.url().includes("reserve-court-new") && res.request().method() === "POST",
+      { timeout: 15000 }
+    ),
+    page.evaluate(() => { document.querySelector("#reserve-court-search").click(); }),
   ]);
 
   // ── STEP 8: Read results ─────────────────────────────────────────
   const resultsHtml = await page.content();
- fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
-
+ // await page.screenshot({ path: 'search-after-click.png' });
+ // fs.writeFileSync("debug-results.html", resultsHtml, "utf8");
 
   if (resultsHtml.includes("No available times based on your search criteria")) {
-    console.log("❌ No courts available for this date/time");
-      return;
-    }
+    const msg = `❌ No courts available on ${date} (6–9 PM)`;
+    console.log(msg);
+   // await sendTelegram(msg);
+    await browser.close();
+    return;
+  }
+  
+  const earliestSlot = await page.evaluate(() => {
+  const table = document.querySelector("#times-to-reserve");
+  if (!table) return null;
+
+  const firstLink = table.querySelector("a");
+  if (!firstLink) return null;
+
+    return {
+      time: firstLink.innerText.trim(),   // e.g. "11:00am"
+    };
+    
+  });
+  console.log("Clicking " + earliestSlot.time + "...");
+    await page.evaluate(() => {
+    const table    = document.querySelector("#times-to-reserve");
+    const firstLink = table.querySelector("a");
+    firstLink.click();
+});
+
+
 
     
  // await browser.close();
