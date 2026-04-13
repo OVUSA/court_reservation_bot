@@ -1,6 +1,4 @@
-// index.handler.js
-
-exports.handler = async () => {
+module.exports.handler = async (event) => {
     try {
       const { main } = await import("./index.js");
       const result = await main();
