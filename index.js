@@ -16,7 +16,7 @@ import {
   cancelReservation,
 } from "./reservation.js";
 
-async function main() {
+export const main = async () => {
   validate();
 
   let searchDate = getTomorrow();
