@@ -53,6 +53,11 @@ export const main = async () => {
 
       if (!courtsAvailable) {
         console.log(`❌ No courts available on ${date}`);
+        await sendTelegram(
+          `❌ No courts available on ${date}`,
+          TELEGRAM_TOKEN,
+          TELEGRAM_CHAT_ID
+        );
         searchDate = addDays(searchDate, 1);
         continue;
       }
